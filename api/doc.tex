@@ -1,0 +1,338 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\author{Michał Wielgus}
+\title{Passive Uninterrupted Host Watcher - design document}
+\date{2014-04-01}
+
+\usepackage{fullpage}
+\usepackage[english,polish]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[hypcap]{caption}
+\usepackage{perpage}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{multicol}
+\usepackage{multirow}
+
+\renewcommand{\thefootnote}{\alph{footnote}}
+\begin{document}
+\pagenumbering{roman}
+\maketitle
+\tableofcontents
+\listoffigures
+\clearpage
+\setcounter{page}{1} \pagenumbering{arabic}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction}
+\subsection{General}
+\texttt{puhw} (Passive Uninterrupted Host Watcher) is a modular host monitoring system.
+\section{Modules}
+\subsection{Sensor}
+Sensors periodically provide data to update the current state of relevant metrics.
+\subsubsection{Configuration}
+Sensors are configured locally with at least the following mandatory parameters (additional parameters may be required):
+\begin{itemize}
+	\item hostname
+	\item sensorname
+	\item monitor IP
+	\item update frequency
+	\item username \& password
+\end{itemize}
+\subsubsection{Communication}
+A sensor can do only three things:
+\begin{enumerate}
+	\item Register with a monitor using hostname/sensorname pair, user credentials and a metrics list.
+	\item Periodically send timestamped data for provided metrics.
+	\item Receive a GTFO\footnote{Gracefuly Terminate Further Operation} request and die.
+\end{enumerate}
+All communication will be done via UDP.
+The protocol is currently under development.
+\subsection{Authentication, authorization}
+A challenge-response scheme will be used for authentication.
+Before registration and each metric update a challenge-response token is obtained from the assigned monitor; it is then appended to the prepared data, username, and password; hashed by a secure hash function and added to the message as a proof of sender's identity.
+
+Given a sufficiently long token such a proof shall leave no doubt as to message's veracity, yet the user's credentials never have to be sent through an untrusted channel.
+
+For the GTFO request this scheme is reversed, as it is the monitor's turn to prove its identity.
+\subsubsection{Implementations}
+Four sensor implementations will be provided:
+\begin{description}
+\item[SystemInfo] - 
+	Provided metrics:
+	\begin{itemize}
+		\item hostname
+		\item OS
+		\item hardware info
+		\item host description
+	\end{itemize}
+\item[SystemLoad] - 
+	Provided metrics:
+	\begin{itemize}
+		\item free memory
+		\item CPU utilization
+		\item load average
+		\item active threads
+	\end{itemize}
+\item[NetworkLoad] - 
+	Provided metrics:
+	\begin{itemize}
+		\item TX/RX summary
+		\item current bandwidth usage
+	\end{itemize}
+\item[Compound] - 
+	Provided metrics:
+	\begin{itemize}
+		\item TX/RX summary
+		\item current bandwidth usage
+	\end{itemize}
+	Additional parameters:
+	\begin{itemize}
+		\item Source Monitor
+		\item Source Host
+		\item Source Metric
+		\item Window
+	\end{itemize}
+\end{description}
+\subsection{Monitor}
+Monitors gather, store and provide access to data sent by sensors.
+They also handle authentication and allow for sensor termination.
+\subsubsection{Configuration}
+Monitors are configured locally with following mandatory parameters:
+\begin{itemize}
+	\item monitor name
+	\item catalog IP
+\end{itemize}
+\subsubsection{Communication}
+Monitors can do the following things:
+\begin{itemize}
+	\item register with a catalog
+	\item update sensor info (\@ every sensor registration)
+	\item sign a user in
+	\item sign a user out
+	\item add a user account
+	\item provide a list of hosts
+	\item provide a list of sensors for a selected host
+	\item provide a list of metrics for a selected sensor
+	\item provide a list of datapoints for a selected metric
+\end{itemize}
+\subsection{Catalog}
+Catalogs provide a registry for monitors to populate.
+\subsubsection{Configuration}
+No configuration is needed.
+\subsubsection{Communication}
+Catalogs can do the following things:
+\begin{itemize}
+	\item provide a list of monitors
+	\item provide a list of hosts by monitor
+	\item register a catalog entry
+	\item update a catalog entry
+\end{itemize}
+\subsection{Client}
+Two clients are provided. More details will follow.
+\subsubsection{Client 1 - WebGUI}
+	WebGUI - general. User control!
+\subsubsection{Client 2 - TUI}
+	Top-like client. Exact specs TBD.
+\clearpage
+\section{API}
+\subsection{Catalog}
+\begin{itemize}
+	\item \texttt{\{catalogURI\}/monitors}
+	\begin{description}
+		\item{GET}: get list of available monitors
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: n/a
+	\end{description}
+	\begin{verbatim}
+	{
+		[{
+			"name": "monitor1", "href": "http://10.0.0.1/"
+		},{
+			"name": "monitor2", "href": "http://10.0.0.2/"
+		}]
+	}
+	\end{verbatim}
+	\item \texttt{\{catalogURI\}/monitors/\{monitorID\}}
+	see above
+	\item \texttt{\{catalogURI\}/monitors/\{monitorID\}/hosts/}
+	\begin{description}
+		\item{GET}: get list of hosts serviced by this monitor
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: n/a
+	\end{description}
+	\begin{verbatim}
+	{
+		"name": "monitor1", href: "http://10.0.0.1/hosts/",
+		[{
+			"hostname": "box", "ip" = "10.0.1.128", "href": "http://10.0.0.1/hosts/box"
+		},{
+			"hostname": "xob", "ip" = "10.0.1.129", "href": "http://10.0.0.1/hosts/xob"
+		}]
+	}
+	\end{verbatim}
+\end{itemize}
+\subsection{Monitor}
+\begin{itemize}
+	\item \texttt{\{monitorURI\}/hosts/}
+	\begin{description}
+		\item{GET}: get list of hosts serviced by this monitor
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: n/a
+	\end{description}
+	\begin{verbatim}
+	{
+		"name": "monitor1", href: "http://10.0.0.1/hosts/",
+		[{
+			"hostname": "box", "ip" = "10.0.1.128", "href": "http://10.0.0.1/hosts/box"
+		},{
+			"hostname": "xob", "ip" = "10.0.1.129", "href": "http://10.0.0.1/hosts/xob"
+		}]
+	}
+	\end{verbatim}
+	\item \texttt{\{monitorURI\}/hosts/\{hostname\}/sensors/}
+	\begin{description}
+		\item{GET}: get list of sensors for a particular host
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: n/a
+	\end{description}
+	\begin{verbatim}
+	{
+		"hostname": "box", "ip" = "10.0.1.128", "href": "http://10.0.0.1/hosts/box",
+		"sensors": [{
+			"sensorname": "sensor1", "owner": "user1", "rpm": "10",
+			"href": "http://10.0.0.1/hosts/box/sensors/sensor1"
+		},{
+			"sensorname": "sensor2", "owner": "user1", "rpm": "10",
+			"href": "http://10.0.0.1/hosts/box/sensors/sensor2"
+		}]
+	}
+	\end{verbatim}
+	\item \texttt{\{monitorURI\}/hosts/\{hostname\}/sensors/\{sensorname\}}
+	\begin{description}
+		\item{GET}: get info for a particular sensor
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: send a GTFO request to a particular sensor
+	\end{description}
+	\begin{verbatim}
+	{
+		"sensorname": "sensor1",
+		"hostname": "box",
+		"href": "http://10.0.0.1/hosts/box/sensors/sensor1",
+		"owner": "user1", "rpm": "10"
+	}
+	\end{verbatim}
+	\item \texttt{\{monitorURI\}/hosts/\{hostname\}/sensors/\{sensorname\}/metrics/}
+	\begin{description}
+		\item{GET}: get list of metrics for a particular sensor
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: n/a
+	\end{description}
+	\begin{verbatim}
+	{
+		"sensorname": "sensor1",
+		"hostname": "box",
+		"owner": "user1", "rpm": "10",
+		"href": "http://10.0.0.1/hosts/box/sensors/sensor1",
+		"metrics": [{
+			"name": "metric1", "href": "http://10.0.0.1/hosts/box/sensors/sensor1/metrics/metric1"
+		},{
+			"name": "metric2", "href": "http://10.0.0.1/hosts/box/sensors/sensor1/metrics/metric1"
+		}]
+	}
+	\end{verbatim}
+	\item \texttt{\{monitorURI\}/hosts/\{hostname\}/sensors/\{sensorname\}/metrics/\{metricname\}}
+	\begin{description}
+		\item{GET}: get info for a particular metric
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: n/a
+	\end{description}
+	\begin{verbatim}
+	{
+		"sensorname": "sensor1",
+		"hostname": "box",
+		"owner": "user1", "rpm": "10",
+		"href": "http://10.0.0.1/hosts/box/sensors/sensor1",
+		"metrics": [{
+			"name": "metric1", "href": "http://10.0.0.1/hosts/box/sensors/sensor1/metrics/metric1"
+		},{
+			"name": "metric2", "href": "http://10.0.0.1/hosts/box/sensors/sensor1/metrics/metric1"
+		}]
+	}
+	\end{verbatim}
+	\item \texttt{\{monitorURI\}/hosts/\{hostname\}/sensors/\{sensorname\}/metrics/\{metric1\};\{metric2\}/data[\&n=20]}
+	\begin{description}
+		\item{GET}: get $n$ (max $100$, default $20$) timestamped datapoints for the requested metric
+		\item{POST}: n/a
+		\item{PUT}: n/a
+		\item{DELETE}: n/a
+	\end{description}
+	\begin{verbatim}
+	{
+		"sensorname": "sensor1",
+		"hostname": "box",
+		"owner": "user1", "rpm": "10",
+		"href": "http://10.0.0.1/hosts/box/sensors/sensor1/metrics/",
+		"metrics": [{
+			"name": "metric1", "href": "http://10.0.0.1/hosts/box/sensors/sensor1/metrics/metric1",
+			"data": [("2014-04-01T01:01:01", 1), ("2014-04-01T01:01:01", 2),
+			("2014-04-01T01:01:01", 3), ...]
+		},{
+			"name": "metric2", "href": "http://10.0.0.1/hosts/box/sensors/sensor1/metrics/metric1",
+			"data": [("2014-04-01T01:01:01", 1), ("2014-04-01T01:01:01", 2),
+			("2014-04-01T01:01:01", 3), ...]
+		}]
+	}
+	\end{verbatim}
+\end{itemize}
+\clearpage
+\section{Subteams}
+\subsection{Catalog}
+\begin{itemize}
+\item Maciej Siczek
+\end{itemize}
+\subsection{Monitor}
+\begin{itemize}
+\item Remigiusz Rohulko
+\item Marek Nędza
+\item Krzysztof Żygłowicz
+\end{itemize}
+\subsection{Sensors - monitor communication}
+\begin{itemize}
+\item Dominik Szerszeń
+\end{itemize}
+\subsection{Sensors}
+\begin{itemize}
+\item Przemysław Plutecki
+\item Patryk Konopka
+\end{itemize}
+\subsection{Client 1}
+\begin{itemize}
+\item Michał Wąsek
+\item Paweł Piecyk
+\end{itemize}
+\subsection{Client 2}
+\begin{itemize}
+\item Paweł Zadrożniak
+\end{itemize}
+\subsection{Architecture, PR}
+\begin{itemize}
+\item Michał Wielgus
+\end{itemize}
+\section{Talk}
+\begin{itemize}
+\item mockup
+\item udp
+\item register/login
+\item auth
+\end{itemize}
+\end{document}
