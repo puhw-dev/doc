@@ -119,16 +119,17 @@ Monitors can do the following things:
 	\item provide a list of datapoints for a selected metric
 \end{itemize}
 \subsection{Catalog}
-Catalogs provide a registry for monitors to populate.
+Catalog is a HTTP server that provides a public registry for monitors to populate. The up-to-date registry of monitors maintained by catalog allows browsing and searching.
 \subsubsection{Configuration}
-No configuration is needed.
+Catalog server can be configured via command line options. Execute catalog with -h option to see configuration possibilities.
 \subsubsection{Communication}
 Catalogs can do the following things:
 \begin{itemize}
-	\item provide a list of monitors
-	\item provide a list of hosts by monitor
+	\item provide a list of all monitors that have been registered
 	\item register a catalog entry
 	\item update a catalog entry
+	\item delete a catalog entry
+	\item search monitors by name
 \end{itemize}
 \subsection{Client}
 Two clients are provided. More details will follow.
@@ -142,39 +143,64 @@ Two clients are provided. More details will follow.
 \begin{itemize}
 	\item \texttt{\{catalogURI\}/monitors}
 	\begin{description}
-		\item{GET}: get list of available monitors
-		\item{POST}: n/a
+		\item{GET}: returns list of registered monitors in following format:
+			\begin{verbatim}
+				[{
+					"name": "monitor1", "ip": "10.0.0.1", "href": "{catalog-uri}/monitors/monitor1"
+				},{
+					"name": "monitor2", "ip": "10.0.0.2:33333", "href": "{catalog-uri}/monitors/monitor2"
+				}]
+			\end{verbatim}
+		If there are no registered monitors, it returns empty list: [], and HTTP status code 200.
+		\item{POST}: registers new monitor within this catalog. Requires input in following format:
+			\begin{verbatim}
+				{
+					"name": "monitor1", "ip": "10.0.0.1:12345"
+				}
+			\end{verbatim}
+			If monitor with given \textit{name} already exists returns HTTP status code 409.\\
+			If message body is empty, or has wrong syntax returns HTTP status code 400.\\
+			If monitor has been successfully registered, returns HTTP status code 201.
 		\item{PUT}: n/a
 		\item{DELETE}: n/a
 	\end{description}
-	\begin{verbatim}
-	{
-		[{
-			"name": "monitor1", "href": "http://10.0.0.1/"
-		},{
-			"name": "monitor2", "href": "http://10.0.0.2/"
-		}]
-	}
-	\end{verbatim}
 	\item \texttt{\{catalogURI\}/monitors/\{monitorID\}}
-	see above
-	\item \texttt{\{catalogURI\}/monitors/\{monitorID\}/hosts/}
 	\begin{description}
-		\item{GET}: get list of hosts serviced by this monitor
+			\item{GET}: returns parameters of monitor with id \textit{\{monitor-id\}} in following format:
+				\begin{verbatim}
+					{
+						"name": "monitor1", "ip": "10.0.0.1", "href": "{catalog-uri}/monitors/monitor1"
+					}
+			\end{verbatim}
+			If there is no registered monitor with id \textit{\{monitor-id\}} in this catalog it returns HTTP status code 410.
+			\item{POST}: Updates parameters of monitor with id \textit{\{monitor-id\}}. It requires input in following format:
+				\begin{verbatim}
+					{
+						"ip": "10.0.0.1"
+					}
+				\end{verbatim}
+				If there is no registered monitor with id \textit{\{monitor-id\}} in this catalog it returns HTTP status code 410.\\
+				If message body is empty, or has wrong syntax returns HTTP status code 400.\\
+				\textbf{Note:} To rename registered monitor delete it first, then register again under new (unique) name, see POST \{catalog-uri\}/monitors.
+			\item{PUT}: n/a
+			\item{DELETE}: deletes catalog entry for monitor with id  \textit{\{monitor-id\}}.
+			If there is no registered monitor with id \textit{\{monitor-id\}} in this catalog, it returns HTTP status code 410.
+		\end{description}
+	\item \texttt{\{catalogURI\}/search/monitor-name=\{searched-name\}}
+	\begin{description}
+		\item{GET}: returns list of monitors which have parameter \textit{name} that matches regular expression: .*\{searched-name\}.*, i.e. for GET \{catalogURI\}/search/monitor-name=\textbf{ii}  matching names would be 'wf\textbf{ii}s', 'WF\textbf{iI}S'. Output has following format:
+			\begin{verbatim}
+				[{
+				"name": "monitor1", "ip": "10.0.0.1:55555", "href": "{catalog-uri}/monitors/monitor1"
+				},{
+				"name": "monitor2", "ip": "10.0.0.2", "href": "{catalog-uri}/monitors/monitor1"
+				}]
+			\end{verbatim}
+		If there are no results for the query, it returns empty list: [], and HTTP status code 200.
 		\item{POST}: n/a
 		\item{PUT}: n/a
 		\item{DELETE}: n/a
 	\end{description}
-	\begin{verbatim}
-	{
-		"name": "monitor1", href: "http://10.0.0.1/hosts/",
-		[{
-			"hostname": "box", "ip" = "10.0.1.128", "href": "http://10.0.0.1/hosts/box"
-		},{
-			"hostname": "xob", "ip" = "10.0.1.129", "href": "http://10.0.0.1/hosts/xob"
-		}]
-	}
-	\end{verbatim}
 \end{itemize}
 \subsection{Monitor}
 \begin{itemize}
